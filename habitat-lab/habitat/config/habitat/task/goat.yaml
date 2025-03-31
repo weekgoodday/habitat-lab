@@ -18,6 +18,7 @@ defaults:
     - multigoal_sensor
     - compass_sensor
     - gps_sensor
+    - globalpose_sensor
   - _self_
 
 

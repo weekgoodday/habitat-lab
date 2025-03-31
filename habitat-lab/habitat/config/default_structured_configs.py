@@ -270,6 +270,9 @@ class HeadingSensorConfig(LabSensorConfig):
 class CompassSensorConfig(LabSensorConfig):
     type: str = "CompassSensor"
 
+@attr.s(auto_attribs=True, slots=True)
+class GlobalPoseSensorConfig(LabSensorConfig):
+    type: str = "GlobalPoseSensor"
 
 @attr.s(auto_attribs=True, slots=True)
 class GPSSensorConfig(LabSensorConfig):
@@ -1583,6 +1586,12 @@ cs.store(
     group="habitat/task/lab_sensors",
     name="compass_sensor",
     node=CompassSensorConfig,
+)
+cs.store(
+    package="habitat.task.lab_sensors.globalpose_sensor",
+    group="habitat/task/lab_sensors",
+    name="globalpose_sensor",
+    node=GlobalPoseSensorConfig,
 )
 cs.store(
     package="habitat.task.lab_sensors.robot_start_gps_sensor",

@@ -425,6 +425,25 @@ class EpisodicCompassSensor(HeadingSensor):
         else:
             raise ValueError("Agent's rotation was not a quaternion")
 
+@registry.register_sensor(name="GlobalPoseSensor")
+class EpisodicGlobalPoseSensor(HeadingSensor):
+    r"""sensor return ndarray (7,) rotation w x y z and position x y z
+    """
+    cls_uuid: str = "globalpose"
+
+    def _get_uuid(self, *args: Any, **kwargs: Any) -> str:
+        return self.cls_uuid
+
+    def get_agent_current_pose(self, sim):
+        agent_state = self._sim.get_agent_state()
+        return agent_state.position, agent_state.rotation
+
+    def get_observation(
+        self, observations, episode, task, *args: Any, **kwargs: Any
+    ):
+        
+        position_world_agent, rotation_world_agent = self.get_agent_current_pose(self._sim)
+        return np.array([rotation_world_agent.w, rotation_world_agent.x, rotation_world_agent.y, rotation_world_agent.z, position_world_agent[0], position_world_agent[1], position_world_agent[2]])
 
 @registry.register_sensor(name="GPSSensor")
 class EpisodicGPSSensor(Sensor):
@@ -1001,7 +1020,7 @@ class TopDownMap(Measure):
             self._draw_goals_view_points(episode)
             self._draw_goals_aabb(episode)
             self._draw_goals_positions(episode)
-            self._draw_shortest_path(episode, agent_position)
+            # self._draw_shortest_path(episode, agent_position)
 
         if self._config.draw_source:
             self._draw_point(
@@ -1092,112 +1111,165 @@ class GOATTopDownMap(TopDownMap):
     def _get_uuid(self, *args: Any, **kwargs: Any) -> str:
         return "goat_top_down_map"
 
-    def _draw_goals_view_points(self, episode):
+    def _draw_goals_view_points(self, episode_subtask):
         if self._config.draw_view_points:
-            cur_idx = 0
-            for super_goals in episode.goals:
-                cur_idx+=1
-                # reset top down map, wxl
-                self._top_down_map = self.get_original_map()
-                # 
-                
-                if type(super_goals[0]) != dict:
-                    super_goals = super_goals[0]
-                for goal in super_goals:
-                    if self._is_on_same_floor(goal["position"][1]):
-                        try:
-                            if goal["view_points"] is not None:
-                                for view_point in goal["view_points"]:
-                                    self._draw_point(
-                                        view_point["agent_state"]["position"],
-                                        maps.MAP_VIEW_POINT_INDICATOR,
-                                    )
-                        except AttributeError:
-                            pass
-                
-                # wxl
-                import matplotlib.pyplot as plt 
-                output_path = "/home/wxl/lagmemo/tdmap/" + episode.scene_id.split('.')[0][-11:]
-                import os
-                if not os.path.exists(output_path):
-                    os.makedirs(output_path)
-                np.unique(self._top_down_map) 
-                from matplotlib.colors import ListedColormap 
-                colors = ['black', 'red', 'green', 'blue', 'gray', 'yellow', 'purple', 'orange', 'cyan'] 
-                cmap = ListedColormap(colors) 
-                plt.imshow(self._top_down_map, cmap=cmap, vmin=0, vmax=8) 
-                plt.savefig(output_path + f"/draw_pointx{cur_idx}.png", bbox_inches='tight')
-
-    def _draw_goals_positions(self, episode):
-        if self._config.draw_goal_positions:
-
-            for super_goals in episode.goals:
-                if type(super_goals[0]) != dict:
-                    super_goals = super_goals[0]
-                for goal in super_goals:
-                    if self._is_on_same_floor(goal['position'][1]):
-                        try:
-                            self._draw_point(
-                                goal['position'], maps.MAP_TARGET_POINT_INDICATOR
-                            )
-                        except AttributeError:
-                            pass
-
-    def _draw_goals_aabb(self, episode):
-        if self._config.draw_goal_aabbs:
-            for super_goals in episode.goals:
-                for goal in super_goals:
+            if type(episode_subtask[0]) != dict:
+                episode_subtask = episode_subtask[0]
+            for goal in episode_subtask:
+                if self._is_on_same_floor(goal["position"][1]):
                     try:
-                        sem_scene = self._sim.semantic_annotations()
-                        object_id = goal.object_id
-                        if type(object_id) != int:
-                            object_id = int(object_id.split("_")[-1])
-                        assert int(
-                            sem_scene.objects[object_id].id.split("_")[-1]
-                        ) == int(
-                            object_id
-                        ), f"Object_id doesn't correspond to id in semantic scene objects dictionary for episode: {episode}"
+                        if goal["view_points"] is not None:
+                            for view_point in goal["view_points"]:
+                                self._draw_point(
+                                    view_point["agent_state"]["position"],
+                                    maps.MAP_VIEW_POINT_INDICATOR,
+                                )
+                    except AttributeError:
+                        pass
+            # for super_goals in episode.goals:
+            #     if type(super_goals[0]) != dict:
+            #         super_goals = super_goals[0]
+            #     for goal in super_goals:
+            #         if self._is_on_same_floor(goal["position"][1]):
+            #             try:
+            #                 if goal["view_points"] is not None:
+            #                     for view_point in goal["view_points"]:
+            #                         self._draw_point(
+            #                             view_point["agent_state"]["position"],
+            #                             maps.MAP_VIEW_POINT_INDICATOR,
+            #                         )
+            #             except AttributeError:
+            #                 pass
 
-                        center = sem_scene.objects[object_id].aabb.center
-                        x_len, _, z_len = (
-                            sem_scene.objects[object_id].aabb.sizes / 2.0
-                        )
-                        # Nodes to draw rectangle
-                        corners = [
-                            center + np.array([x, 0, z])
-                            for x, z in [
-                                (-x_len, -z_len),
-                                (-x_len, z_len),
-                                (x_len, z_len),
-                                (x_len, -z_len),
-                                (-x_len, -z_len),
-                            ]
-                            if self._is_on_same_floor(center[1])
-                        ]
-
-                        map_corners = [
-                            maps.to_grid(
-                                p[2],
-                                p[0],
-                                (
-                                    self._top_down_map.shape[0],
-                                    self._top_down_map.shape[1],
-                                ),
-                                sim=self._sim,
-                            )
-                            for p in corners
-                        ]
-
-                        maps.draw_path(
-                            self._top_down_map,
-                            map_corners,
-                            maps.MAP_TARGET_BOUNDING_BOX,
-                            self.line_thickness,
+    def _draw_goals_positions(self, episode_subgoal):
+        if self._config.draw_goal_positions:
+            if type(episode_subgoal[0]) != dict:
+                episode_subgoal = episode_subgoal[0]
+            for goal in episode_subgoal:
+                if self._is_on_same_floor(goal["position"][1]):
+                    try:
+                        self._draw_point(
+                            goal["position"], maps.MAP_TARGET_POINT_INDICATOR
                         )
                     except AttributeError:
                         pass
+            # for super_goals in episode.goals:
+            #     if type(super_goals[0]) != dict:
+            #         super_goals = super_goals[0]
+            #     for goal in super_goals:
+            #         if self._is_on_same_floor(goal['position'][1]):
+            #             try:
+            #                 self._draw_point(
+            #                     goal['position'], maps.MAP_TARGET_POINT_INDICATOR
+            #                 )
+            #             except AttributeError:
+            #                 pass
 
-    def reset_metric(self, episode, *args: Any, **kwargs: Any):
+    def _draw_goals_aabb(self, episode_subgoal):
+        if self._config.draw_goal_aabbs:
+            for goal in episode_subgoal:
+                try:
+                    sem_scene = self._sim.semantic_annotations()
+                    object_id = goal.object_id
+                    if type(object_id) != int:
+                        object_id = int(object_id.split("_")[-1])
+                    assert int(
+                        sem_scene.objects[object_id].id.split("_")[-1]
+                    ) == int(
+                        object_id
+                    ), f"Object_id doesn't correspond to id in semantic scene objects dictionary for episode"
+
+                    center = sem_scene.objects[object_id].aabb.center
+                    x_len, _, z_len = (
+                        sem_scene.objects[object_id].aabb.sizes / 2.0
+                    )
+                    # Nodes to draw rectangle
+                    corners = [
+                        center + np.array([x, 0, z])
+                        for x, z in [
+                            (-x_len, -z_len),
+                            (-x_len, z_len),
+                            (x_len, z_len),
+                            (x_len, -z_len),
+                            (-x_len, -z_len),
+                        ]
+                        if self._is_on_same_floor(center[1])
+                    ]
+
+                    map_corners = [
+                        maps.to_grid(
+                            p[2],
+                            p[0],
+                            (
+                                self._top_down_map.shape[0],
+                                self._top_down_map.shape[1],
+                            ),
+                            sim=self._sim,
+                        )
+                        for p in corners
+                    ]
+
+                    maps.draw_path(
+                        self._top_down_map,
+                        map_corners,
+                        maps.MAP_TARGET_BOUNDING_BOX,
+                        self.line_thickness,
+                    )
+                except AttributeError:
+                    pass
+            # for super_goals in episode.goals:
+            #     for goal in super_goals:
+            #         try:
+            #             sem_scene = self._sim.semantic_annotations()
+            #             object_id = goal.object_id
+            #             if type(object_id) != int:
+            #                 object_id = int(object_id.split("_")[-1])
+            #             assert int(
+            #                 sem_scene.objects[object_id].id.split("_")[-1]
+            #             ) == int(
+            #                 object_id
+            #             ), f"Object_id doesn't correspond to id in semantic scene objects dictionary for episode: {episode}"
+
+            #             center = sem_scene.objects[object_id].aabb.center
+            #             x_len, _, z_len = (
+            #                 sem_scene.objects[object_id].aabb.sizes / 2.0
+            #             )
+            #             # Nodes to draw rectangle
+            #             corners = [
+            #                 center + np.array([x, 0, z])
+            #                 for x, z in [
+            #                     (-x_len, -z_len),
+            #                     (-x_len, z_len),
+            #                     (x_len, z_len),
+            #                     (x_len, -z_len),
+            #                     (-x_len, -z_len),
+            #                 ]
+            #                 if self._is_on_same_floor(center[1])
+            #             ]
+
+            #             map_corners = [
+            #                 maps.to_grid(
+            #                     p[2],
+            #                     p[0],
+            #                     (
+            #                         self._top_down_map.shape[0],
+            #                         self._top_down_map.shape[1],
+            #                     ),
+            #                     sim=self._sim,
+            #                 )
+            #                 for p in corners
+            #             ]
+
+            #             maps.draw_path(
+            #                 self._top_down_map,
+            #                 map_corners,
+            #                 maps.MAP_TARGET_BOUNDING_BOX,
+            #                 self.line_thickness,
+            #             )
+            #         except AttributeError:
+            #             pass
+
+    def reset_metric(self, episode, task, *args: Any, **kwargs: Any):
         self._step_count = 0
         self._metric = None
         self._top_down_map = self.get_original_map()
@@ -1213,10 +1285,11 @@ class GOATTopDownMap(TopDownMap):
         self.update_fog_of_war_mask(np.array([a_x, a_y]))
 
         if hasattr(episode, "goals"):
+            episode_subgoal = episode.goals[task.current_task_idx]
             # draw source and target parts last to avoid overlap
-            self._draw_goals_view_points(episode)
-            self._draw_goals_aabb(episode)
-            self._draw_goals_positions(episode)
+            self._draw_goals_view_points(episode_subgoal)
+            self._draw_goals_aabb(episode_subgoal)
+            self._draw_goals_positions(episode_subgoal)
             # self._draw_shortest_path(episode, agent_position)
         if self._config.draw_source:
             self._draw_point(
@@ -1321,6 +1394,13 @@ class GOATDistanceToSubGoal(DistanceToGoal):
     def __init__(
         self, sim: Simulator, config: "DictConfig", *args: Any, **kwargs: Any
     ):
+        # start, wxl
+        self.current_cur_step = 1
+        self.current_cur_task = 0
+        self.hfov = None
+        self.current_cur_subgoal = 0
+        # end, wxl
+
         super().__init__(sim, config, **kwargs)
 
         # start, wxl
@@ -1344,6 +1424,10 @@ class GOATDistanceToSubGoal(DistanceToGoal):
         self.update_metric(episode=episode, *args, **kwargs)  # type: ignore
 
     def update_goal_viewpoints(self, episode, current_goal_idx=0):
+        
+        # start, wxl
+        self.current_cur_subgoal = current_goal_idx
+        # end, wxl
 
         self._episode_view_points = []
 
@@ -1374,49 +1458,60 @@ class GOATDistanceToSubGoal(DistanceToGoal):
     def update_metric(
         self, episode: NavigationEpisode, *args: Any, **kwargs: Any
     ):
-        
-        # # start，录制数据，2025.2.24，wxl
-        # print("record some rgb-d and position/rotation data, wxl")
-        # # import ipdb; ipdb.set_trace()
+        from PIL import Image
+        import os
+        def keep_img(img, path, type = ''):
+            # if type == 'depth':
+            #     depth_map = np.array(img)
+            #     depth_min = depth_map.min()
+            #     depth_max = depth_map.max()
 
-        # current_position = self._sim.get_agent_state().position
-        # current_rotation = self._sim.get_agent_state().rotation
+            #     # normalized_depth = ((depth_map - depth_min) / (depth_max - depth_min) * 255).astype(np.uint8)
+            #     # img = Image.fromarray(normalized_depth)
+            #     img = Image.fromarray(depth_map.astype(np.uint8))
+            #     img.save(path)
+            #     return 
 
-        # current_obs = self._sim.get_sensor_observations()
-        # current_rgb = current_obs['rgb']
-        # current_depth = current_obs['depth']
-        # # print(current_position.tolist())
-        # concat_pos = [current_rotation.w,current_rotation.x,current_rotation.y,current_rotation.z] + current_position.tolist()
-        # concat_pos = [str(x) for x in concat_pos]
+            img = np.array(img,dtype=np.uint8)
+            img = Image.fromarray(img)
+            img.save(path)
+        # start，record data，2025.2.24，wxl
+        print("record some rgb-d and position/rotation data, wxl")
+        current_position = self._sim.get_agent_state().position
+        current_rotation = self._sim.get_agent_state().rotation
 
-        # sensor_spec = self._sim.config.agents[0].sensor_specifications[0]
-        # self.hfov = sensor_spec.hfov
+        current_obs = self._sim.get_sensor_observations()
+        current_rgb = current_obs['rgb']
+        current_depth = current_obs['depth']
+        # print(current_position.tolist())
+        concat_pos = [current_rotation.w,current_rotation.x,current_rotation.y,current_rotation.z] + current_position.tolist()
+        concat_pos = [str(x) for x in concat_pos]
 
-        # if self.current_cur_step>=1:
-        #     # print("\n\n\n\n\n")
-        #     if self.current_cur_subgoal != self.current_cur_task:
-        #         self.current_cur_step = 1
-        #         self.current_cur_task = self.current_cur_subgoal
-        #     concat_pos = f"{int(self.current_cur_step)} "+' '.join(concat_pos)
-        #     rgb_path = f"/home/wxl/lagmemo/data_record/result/{self.current_cur_subgoal}/rgb/"
-        #     dep_path = f"/home/wxl/lagmemo/data_record/result/{self.current_cur_subgoal}/depth/"
-        #     pos_path = f"/home/wxl/lagmemo/data_record/result/{self.current_cur_subgoal}/"
-        #     if not os.path.exists(rgb_path):
-        #         os.makedirs(rgb_path)
-        #     if not os.path.exists(dep_path):
-        #         os.makedirs(dep_path)
-        #     if not os.path.exists(pos_path):
-        #         os.makedirs(pos_path)
-        #     keep_img(current_rgb,rgb_path + f"img{str(self.current_cur_step).zfill(4)}.png")
-        #     np.save(dep_path + f"img{str(self.current_cur_step).zfill(4)}.npy", np.array(current_depth))
-        #     # keep_img(current_depth,dep_path + f"img{str(self.current_cur_step).zfill(4)}.png", 'depth')
-        #     # keep_img(current_rgb,f"./result/local_depth/img{self.current_step}.png")
-        #     with open(pos_path+"local_pos.txt", "a") as f:
-        #         f.write(str(concat_pos) + "\n")
-        #         # self.current_cur_task+=1
-        # self.current_cur_step+=1
-        # # end
+        sensor_spec = self._sim.config.agents[0].sensor_specifications[0]
+        self.hfov = sensor_spec.hfov
 
+        if self.current_cur_step>=1:
+            if self.current_cur_subgoal != self.current_cur_task:
+                self.current_cur_step = 1
+                self.current_cur_task = self.current_cur_subgoal
+            concat_pos = f"{int(self.current_cur_step)} "+' '.join(concat_pos)
+            rgb_path = f"/home/zht/github_play/mycode/data_for_gs/{self.current_cur_subgoal}/rgb/"
+            dep_path = f"/home/zht/github_play/mycode/data_for_gs/{self.current_cur_subgoal}/depth/"
+            pos_path = f"/home/zht/github_play/mycode/data_for_gs/{self.current_cur_subgoal}/"
+            if not os.path.exists(rgb_path):
+                os.makedirs(rgb_path)
+            if not os.path.exists(dep_path):
+                os.makedirs(dep_path)
+            if not os.path.exists(pos_path):
+                os.makedirs(pos_path)
+            keep_img(current_rgb,rgb_path + f"img{str(self.current_cur_step).zfill(4)}.png")
+            np.save(dep_path + f"img{str(self.current_cur_step).zfill(4)}.npy", np.array(current_depth))
+            # keep_img(current_depth,dep_path + f"img{str(self.current_cur_step).zfill(4)}.png", 'depth')
+            # keep_img(current_rgb,f"./result/local_depth/img{self.current_step}.png")
+            with open(pos_path+"local_pos.txt", "a") as f:
+                f.write(str(concat_pos) + "\n")
+                # self.current_cur_task+=1
+        self.current_cur_step+=1
         if self._distance_from == "END_EFFECTOR":
             current_position = self.get_end_effector_position()
         else:
