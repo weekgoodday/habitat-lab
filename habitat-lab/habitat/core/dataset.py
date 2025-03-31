@@ -410,7 +410,8 @@ class EpisodeIterator(Iterator[T]):
 
         if group_by_scene:
             self.episodes = self._group_scenes(self.episodes)
-
+        # # 4ok debug 5 self.episodes[2].episode_id = 5
+        # self.episodes = [self.episodes[2]]
         self.max_scene_repetition_episodes = max_scene_repeat_episodes
         self.max_scene_repetition_steps = max_scene_repeat_steps
 
