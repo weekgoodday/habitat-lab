@@ -406,11 +406,14 @@ class EpisodeIterator(Iterator[T]):
         self.shuffle = shuffle
 
         if shuffle:
+            # import ipdb; ipdb.set_trace()
             random.shuffle(self.episodes)
 
         if group_by_scene:
             self.episodes = self._group_scenes(self.episodes)
-
+        # import ipdb; ipdb.set_trace()
+        # print("暂时设置只读取该episode，wxl")
+        # self.episodes = [self.episodes[12]]
         self.max_scene_repetition_episodes = max_scene_repeat_episodes
         self.max_scene_repetition_steps = max_scene_repeat_steps
 
@@ -453,6 +456,7 @@ class EpisodeIterator(Iterator[T]):
             self._step_count = 0
 
         self._prev_scene_id = next_episode.scene_id
+        # import ipdb; ipdb.set_trace()
         return next_episode
 
     def _forced_scene_switch(self) -> None:
