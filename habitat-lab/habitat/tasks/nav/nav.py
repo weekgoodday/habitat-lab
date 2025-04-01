@@ -1376,21 +1376,7 @@ class GOATDistanceToSubGoal(DistanceToGoal):
     def __init__(
         self, sim: Simulator, config: "DictConfig", *args: Any, **kwargs: Any
     ):
-        # start, wxl
-        self.current_cur_step = 1
-        self.current_cur_task = 0
-        self.hfov = None
-        self.current_cur_subgoal = 0
-        # end, wxl
-
         super().__init__(sim, config, **kwargs)
-
-        # start, wxl
-        self.current_cur_step = 1
-        self.current_cur_task = 0
-        self.hfov = None
-        self.current_cur_subgoal = 0
-        # end, wxl
 
     def reset_metric(self, episode, *args: Any, **kwargs: Any):
         self._previous_position = None
@@ -1407,10 +1393,6 @@ class GOATDistanceToSubGoal(DistanceToGoal):
 
     def update_goal_viewpoints(self, episode, current_goal_idx=0):
         
-        # start, wxl
-        self.current_cur_subgoal = current_goal_idx
-        # end, wxl
-
         self._episode_view_points = []
 
         try:
@@ -1440,60 +1422,7 @@ class GOATDistanceToSubGoal(DistanceToGoal):
     def update_metric(
         self, episode: NavigationEpisode, *args: Any, **kwargs: Any
     ):
-        from PIL import Image
-        import os
-        def keep_img(img, path, type = ''):
-            # if type == 'depth':
-            #     depth_map = np.array(img)
-            #     depth_min = depth_map.min()
-            #     depth_max = depth_map.max()
-
-            #     # normalized_depth = ((depth_map - depth_min) / (depth_max - depth_min) * 255).astype(np.uint8)
-            #     # img = Image.fromarray(normalized_depth)
-            #     img = Image.fromarray(depth_map.astype(np.uint8))
-            #     img.save(path)
-            #     return 
-
-            img = np.array(img,dtype=np.uint8)
-            img = Image.fromarray(img)
-            img.save(path)
-        # start，record data，2025.2.24，wxl
-        print("record some rgb-d and position/rotation data, wxl")
-        current_position = self._sim.get_agent_state().position
-        current_rotation = self._sim.get_agent_state().rotation
-
-        current_obs = self._sim.get_sensor_observations()
-        current_rgb = current_obs['rgb']
-        current_depth = current_obs['depth']
-        # print(current_position.tolist())
-        concat_pos = [current_rotation.w,current_rotation.x,current_rotation.y,current_rotation.z] + current_position.tolist()
-        concat_pos = [str(x) for x in concat_pos]
-
-        sensor_spec = self._sim.config.agents[0].sensor_specifications[0]
-        self.hfov = sensor_spec.hfov
-
-        if self.current_cur_step>=1:
-            if self.current_cur_subgoal != self.current_cur_task:
-                self.current_cur_step = 1
-                self.current_cur_task = self.current_cur_subgoal
-            concat_pos = f"{int(self.current_cur_step)} "+' '.join(concat_pos)
-            rgb_path = f"/home/zht/github_play/mycode/data_for_gs/{self.current_cur_subgoal}/rgb/"
-            dep_path = f"/home/zht/github_play/mycode/data_for_gs/{self.current_cur_subgoal}/depth/"
-            pos_path = f"/home/zht/github_play/mycode/data_for_gs/{self.current_cur_subgoal}/"
-            if not os.path.exists(rgb_path):
-                os.makedirs(rgb_path)
-            if not os.path.exists(dep_path):
-                os.makedirs(dep_path)
-            if not os.path.exists(pos_path):
-                os.makedirs(pos_path)
-            keep_img(current_rgb,rgb_path + f"img{str(self.current_cur_step).zfill(4)}.png")
-            np.save(dep_path + f"img{str(self.current_cur_step).zfill(4)}.npy", np.array(current_depth))
-            # keep_img(current_depth,dep_path + f"img{str(self.current_cur_step).zfill(4)}.png", 'depth')
-            # keep_img(current_rgb,f"./result/local_depth/img{self.current_step}.png")
-            with open(pos_path+"local_pos.txt", "a") as f:
-                f.write(str(concat_pos) + "\n")
-                # self.current_cur_task+=1
-        self.current_cur_step+=1
+        
         if self._distance_from == "END_EFFECTOR":
             current_position = self.get_end_effector_position()
         else:
