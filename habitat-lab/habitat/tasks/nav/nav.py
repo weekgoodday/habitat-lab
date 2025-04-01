@@ -59,6 +59,23 @@ if TYPE_CHECKING:
 
 cv2 = try_cv2_import()
 
+from PIL import Image
+import os
+def keep_img(img, path, type = ''):
+    if type == 'depth':
+        depth_map = np.array(img)
+        depth_min = depth_map.min()
+        depth_max = depth_map.max()
+
+        # normalized_depth = ((depth_map - depth_min) / (depth_max - depth_min) * 255).astype(np.uint8)
+        # img = Image.fromarray(normalized_depth)
+        img = Image.fromarray(depth_map.astype(np.uint8))
+        img.save(path)
+        return 
+
+    img = np.array(img,dtype=np.uint8)
+    img = Image.fromarray(img)
+    img.save(path)
 
 MAP_THICKNESS_SCALAR: int = 128
 
@@ -1385,6 +1402,13 @@ class GOATDistanceToSubGoal(DistanceToGoal):
         # end, wxl
 
         super().__init__(sim, config, **kwargs)
+
+        # start, wxl
+        self.current_cur_step = 1
+        self.current_cur_task = 0
+        self.hfov = None
+        self.current_cur_subgoal = 0
+        # end, wxl
 
     def reset_metric(self, episode, *args: Any, **kwargs: Any):
         self._previous_position = None
