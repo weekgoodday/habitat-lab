@@ -17,6 +17,7 @@ from habitat.tasks.nav.nav import NavigationEpisode, NavigationTask
 from habitat.utils.geometry_utils import quaternion_from_coeff
 from habitat_sim import bindings as hsim
 from habitat_sim.agent.agent import AgentState, SixDOFPose
+import cv2
 
 if TYPE_CHECKING:
     from omegaconf import DictConfig
@@ -123,13 +124,50 @@ class MultiGoalSensor(Sensor):
             if s.uuid != sensor_uuid
         ]
 
-    def get_image_goal(self, episode, goal_idx, img_goal_id):
+    def get_image_goal(self, episode, goal_idx, img_goal_id, task_type = "image"):
         episode_uniq_id = f"{episode.scene_id} {episode.episode_id} {goal_idx}"
         if episode_uniq_id == self._current_episode_id:
             return self._current_image_goal
-        img_params = episode.goals[goal_idx][0]["image_goals"][
-            img_goal_id
-        ]
+        if task_type == "object":
+            img_params = episode.goals[goal_idx][0][0]["image_goals"][
+                img_goal_id
+            ]
+        else:
+            img_params = episode.goals[goal_idx][0]["image_goals"][
+                img_goal_id
+            ]
+
+        sensor_uuid = f"{self.cls_uuid}_sensor"
+        self._add_sensor(img_params, sensor_uuid)
+
+        self._sim._sensors[sensor_uuid].draw_observation()
+        self._current_image_goal = self._sim._sensors[
+            sensor_uuid
+        ].get_observation()[:, :, :3]
+
+        self._remove_sensor(sensor_uuid)
+
+        self._current_episode_id = episode_uniq_id
+        return self._current_image_goal
+    
+    # wxl, 2025.4.3, 得到真值图片
+    def get_groundtruth_goal(self, episode, goal_idx, img_goal_id, task_type = "image"):
+        episode_uniq_id = f"{episode.scene_id} {episode.episode_id} {goal_idx}"
+        if episode_uniq_id == self._current_episode_id:
+            return self._current_image_goal
+        # best_params_idx = 0
+        # for i, params in enumerate(episode.goals[goal_idx][0]["view_points"]):
+        #     if params["iou"] 
+        if task_type == "object":
+            img_params = episode.goals[goal_idx][0][0]["view_points"][
+                img_goal_id
+            ]["agent_state"]
+        else:
+            img_params = episode.goals[goal_idx][0]["view_points"][
+                img_goal_id
+            ]["agent_state"]
+        img_params['hfov'] = 100
+        img_params['image_dimensions'] = [512,512]
 
         sensor_uuid = f"{self.cls_uuid}_sensor"
         self._add_sensor(img_params, sensor_uuid)
@@ -157,29 +195,59 @@ class MultiGoalSensor(Sensor):
                 f"No goal specified for episode {episode.episode_id}."
             )
             return None
+        
+        data_path = 'groundtruth_data/'
 
         goals, vocabulary = [], []
         for goal_idx, goal_val in enumerate(episode.tasks):
             
             goal = {}
-
+            
             if goal_val[1] == "image":
                 goal["category"] = episode.goals[goal_idx][0]["object_category"]
                 img_goal_id = goal_val[-1]
                 goal["image"] = self.get_image_goal(episode, goal_idx, img_goal_id)
-            else:
-                goal["image"] = None
+                pos = episode.goals[goal_idx][0]["position"]
+            elif goal_val[1] == "description":
+                goal["category"] = episode.goals[goal_idx][0]["object_category"]
+                img_goal_id = 0
+                try:
+                    goal['image'] = self.get_image_goal(episode, goal_idx, img_goal_id)
+                except:
+                    goal["image"] = self.get_groundtruth_goal(episode, goal_idx, img_goal_id)
+            elif goal_val[1] == "object":
+                goal["category"] = episode.goals[goal_idx][0][0]["object_category"]
+                img_goal_id = 0
+                try:
+                    goal['image'] = self.get_image_goal(episode, goal_idx, img_goal_id, task_type="object")
+                except:
+                    goal["image"] = self.get_groundtruth_goal(episode, goal_idx, img_goal_id, task_type="object")
             
             if goal_val[1] == "description":
                 goal["category"] = episode.goals[goal_idx][0]["object_category"]
                 goal["description"] = episode.goals[goal_idx][0]["lang_desc"]
+                pos = episode.goals[goal_idx][0]["position"]
             else:
                 goal["description"] = None
             
             if goal_val[1] == "object":
                 goal["category"] = episode.goals[goal_idx][0][0]["object_category"]
-
+                pos = episode.goals[goal_idx][0][0]["position"]
+            
             goals.append(goal)
+            
+            # # 记录数据，wxl
+            # goal_txt = str(goal_idx).zfill(2) + goal['category']
+            # goal_path = data_path + goal_txt
+            # if not os.path.exists(goal_path):
+            #     os.makedirs(goal_path)
+            # with open(goal_path + '/pos.txt', "a") as f:
+            #     f.write(str(pos) + "\n")
+            # if goal_val[1] == "description":
+            #     with open(goal_path + '/language.txt', "a") as f:
+            #         f.write(str(goal["description"]) + "\n")
+            # goal_img = cv2.cvtColor(np.array(goal['image']).astype(np.uint8), cv2.COLOR_RGB2BGR)
+            # cv2.imwrite(goal_path + f"/{goal_txt}.png", goal_img.astype(np.uint8))
         return goals
 
 
