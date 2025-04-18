@@ -1396,6 +1396,7 @@ class GOATDistanceToSubGoal(DistanceToGoal):
         self._episode_view_points = []
 
         try:
+            # zht: The result of getattr(episode, self._goals_attr)[current_goal_idx] is always a list with a length of 1. However, when the goal is an object goal, the single item inside this list is another list of length N, where N is the number of objects with the same category.
             for goal in getattr(episode, self._goals_attr)[current_goal_idx]:
                 if type(goal) == dict:
                     for vp in goal["view_points"]:
@@ -1403,17 +1404,24 @@ class GOATDistanceToSubGoal(DistanceToGoal):
                             vp['agent_state']['position']
                         )
                 else:
+                    # zht: The goal is a list with a length of N. It is necessary to iterate through goal[0] to goal[N-1] and add the view_points to self._episode_view_points.
                     if type(goal[0]) != dict:
                         for g in goal[0]:
                             for vp in g["view_points"]:
                                 self._episode_view_points.append(
                                     vp['agent_state']['position']
                                 )
+                    # revise: 
                     else:
-                        for vp in goal[0]["view_points"]:
-                            self._episode_view_points.append(
-                                vp['agent_state']['position']
-                            )
+                        for goal_instance in goal:
+                            for vp in goal_instance["view_points"]:
+                                self._episode_view_points.append(
+                                    vp['agent_state']['position']
+                                )
+                        # for vp in goal[0]["view_points"]:
+                        #     self._episode_view_points.append(
+                        #         vp['agent_state']['position']
+                        #     )
         except Exception as e:
             print(e)
             import pdb;pdb.set_trace()
