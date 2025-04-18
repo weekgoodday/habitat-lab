@@ -1278,6 +1278,153 @@ class GOATTopDownMap(TopDownMap):
                 episode.start_position, maps.MAP_SOURCE_POINT_INDICATOR
             )
 
+# class GOATTopDownMap(TopDownMap):
+#     r"""Top Down Map measure for GOAT task."""
+
+#     def __init__(
+#         self,
+#         sim: "HabitatSim",
+#         config: "DictConfig",
+#         *args: Any,
+#         **kwargs: Any,
+#     ):
+#         super().__init__(sim, config)
+
+#     def _get_uuid(self, *args: Any, **kwargs: Any) -> str:
+#         return "goat_top_down_map"
+
+#     def _draw_goals_view_points(self, episode):
+#         if self._config.draw_view_points:
+#             cur_idx = 0
+#             for super_goals in episode.goals:
+#                 cur_idx+=1
+#                 # reset top down map, wxl
+#                 self._top_down_map = self.get_original_map()
+#                 # 
+#                 if type(super_goals[0]) != dict:
+#                     super_goals = super_goals[0]
+#                 goal_txt = super_goals[0]['object_category']
+#                 for goal in super_goals:
+#                     if self._is_on_same_floor(goal["position"][1]):
+#                         try:
+#                             if goal["view_points"] is not None:
+#                                 for view_point in goal["view_points"]:
+#                                     self._draw_point(
+#                                         view_point["agent_state"]["position"],
+#                                         maps.MAP_VIEW_POINT_INDICATOR,
+#                                     )
+#                         except AttributeError:
+#                             pass
+                        
+#                 # wxl
+#                 import matplotlib.pyplot as plt 
+#                 output_path = "/home/wxl/lagmemo/tdmap_gs/" + episode.scene_id.split('.')[0][-11:]
+#                 import os
+#                 if not os.path.exists(output_path):
+#                     os.makedirs(output_path)
+#                 np.unique(self._top_down_map) 
+#                 from matplotlib.colors import ListedColormap 
+#                 colors = ['black', 'red', 'green', 'blue', 'gray', 'yellow', 'purple', 'orange', 'cyan'] 
+#                 cmap = ListedColormap(colors) 
+#                 plt.imshow(self._top_down_map, cmap=cmap, vmin=0, vmax=8) 
+#                 plt.savefig(output_path + f"/{str(cur_idx).zfill(3)}_{goal_txt}.png", bbox_inches='tight')
+
+#     def _draw_goals_positions(self, episode):
+#         if self._config.draw_goal_positions:
+
+#             for super_goals in episode.goals:
+#                 if type(super_goals[0]) != dict:
+#                     super_goals = super_goals[0]
+#                 for goal in super_goals:
+#                     if self._is_on_same_floor(goal['position'][1]):
+#                         try:
+#                             self._draw_point(
+#                                 goal['position'], maps.MAP_TARGET_POINT_INDICATOR
+#                             )
+#                         except AttributeError:
+#                             pass
+
+#     def _draw_goals_aabb(self, episode):
+#         if self._config.draw_goal_aabbs:
+#             for super_goals in episode.goals:
+#                 for goal in super_goals:
+#                     try:
+#                         sem_scene = self._sim.semantic_annotations()
+#                         object_id = goal.object_id
+#                         if type(object_id) != int:
+#                             object_id = int(object_id.split("_")[-1])
+#                         assert int(
+#                             sem_scene.objects[object_id].id.split("_")[-1]
+#                         ) == int(
+#                             object_id
+#                         ), f"Object_id doesn't correspond to id in semantic scene objects dictionary for episode: {episode}"
+
+#                         center = sem_scene.objects[object_id].aabb.center
+#                         x_len, _, z_len = (
+#                             sem_scene.objects[object_id].aabb.sizes / 2.0
+#                         )
+#                         # Nodes to draw rectangle
+#                         corners = [
+#                             center + np.array([x, 0, z])
+#                             for x, z in [
+#                                 (-x_len, -z_len),
+#                                 (-x_len, z_len),
+#                                 (x_len, z_len),
+#                                 (x_len, -z_len),
+#                                 (-x_len, -z_len),
+#                             ]
+#                             if self._is_on_same_floor(center[1])
+#                         ]
+
+#                         map_corners = [
+#                             maps.to_grid(
+#                                 p[2],
+#                                 p[0],
+#                                 (
+#                                     self._top_down_map.shape[0],
+#                                     self._top_down_map.shape[1],
+#                                 ),
+#                                 sim=self._sim,
+#                             )
+#                             for p in corners
+#                         ]
+
+#                         maps.draw_path(
+#                             self._top_down_map,
+#                             map_corners,
+#                             maps.MAP_TARGET_BOUNDING_BOX,
+#                             self.line_thickness,
+#                         )
+#                     except AttributeError:
+#                         pass
+
+#     def reset_metric(self, episode, *args: Any, **kwargs: Any):
+#         self._step_count = 0
+#         self._metric = None
+#         self._top_down_map = self.get_original_map()
+#         agent_position = self._sim.get_agent_state().position
+#         a_x, a_y = maps.to_grid(
+#             agent_position[2],
+#             agent_position[0],
+#             (self._top_down_map.shape[0], self._top_down_map.shape[1]),
+#             sim=self._sim,
+#         )
+#         self._previous_xy_location = (a_y, a_x)
+
+#         self.update_fog_of_war_mask(np.array([a_x, a_y]))
+#         # import ipdb; ipdb.set_trace()
+
+#         if hasattr(episode, "goals"):
+#             # draw source and target parts last to avoid overlap
+#             self._draw_goals_view_points(episode)
+#             self._draw_goals_aabb(episode)
+#             self._draw_goals_positions(episode)
+#             # self._draw_shortest_path(episode, agent_position)
+#         if self._config.draw_source:
+#             self._draw_point(
+#                 episode.start_position, maps.MAP_SOURCE_POINT_INDICATOR
+#             )
+
 
 @registry.register_measure
 class DistanceToGoal(Measure):
@@ -1377,6 +1524,13 @@ class GOATDistanceToSubGoal(DistanceToGoal):
         self, sim: Simulator, config: "DictConfig", *args: Any, **kwargs: Any
     ):
         super().__init__(sim, config, **kwargs)
+        
+        # start, wxl
+        self.current_cur_step = 1
+        self.current_cur_task = 0
+        self.hfov = None
+        self.current_cur_subgoal = 0
+        # end, wxl
 
     def reset_metric(self, episode, *args: Any, **kwargs: Any):
         self._previous_position = None
@@ -1397,6 +1551,7 @@ class GOATDistanceToSubGoal(DistanceToGoal):
 
         try:
             for goal in getattr(episode, self._goals_attr)[current_goal_idx]:
+                # import ipdb; ipdb.set_trace()
                 if type(goal) == dict:
                     for vp in goal["view_points"]:
                         self._episode_view_points.append(
@@ -1422,7 +1577,48 @@ class GOATDistanceToSubGoal(DistanceToGoal):
     def update_metric(
         self, episode: NavigationEpisode, *args: Any, **kwargs: Any
     ):
-        
+        # # start，录制数据，2025.2.24，wxl
+        # print("record some rgb-d and position/rotation data, wxl")
+        # # import ipdb; ipdb.set_trace()
+
+        # current_position = self._sim.get_agent_state().position
+        # current_rotation = self._sim.get_agent_state().rotation
+
+        # current_obs = self._sim.get_sensor_observations()
+        # current_rgb = current_obs['rgb']
+        # current_depth = current_obs['depth']
+        # # print(current_position.tolist())
+        # concat_pos = [current_rotation.w,current_rotation.x,current_rotation.y,current_rotation.z] + current_position.tolist()
+        # concat_pos = [str(x) for x in concat_pos]
+
+        # sensor_spec = self._sim.config.agents[0].sensor_specifications[0]
+        # self.hfov = sensor_spec.hfov
+
+        # if self.current_cur_step>=1:
+        #     # print("\n\n\n\n\n")
+        #     if self.current_cur_subgoal != self.current_cur_task:
+        #         self.current_cur_step = 1
+        #         self.current_cur_task = self.current_cur_subgoal
+        #     concat_pos = f"{int(self.current_cur_step)} "+' '.join(concat_pos)
+        #     rgb_path = f"./result/{self.current_cur_subgoal}/rgb/"
+        #     dep_path = f"./result/{self.current_cur_subgoal}/depth/"
+        #     pos_path = f"./result/{self.current_cur_subgoal}/"
+        #     if not os.path.exists(rgb_path):
+        #         os.makedirs(rgb_path)
+        #     if not os.path.exists(dep_path):
+        #         os.makedirs(dep_path)
+        #     if not os.path.exists(pos_path):
+        #         os.makedirs(pos_path)
+        #     keep_img(current_rgb,rgb_path + f"img{str(self.current_cur_step).zfill(4)}.png")
+        #     np.save(dep_path + f"img{str(self.current_cur_step).zfill(4)}.npy", np.array(current_depth))
+        #     # keep_img(current_depth,dep_path + f"img{str(self.current_cur_step).zfill(4)}.png", 'depth')
+        #     # keep_img(current_rgb,f"./result/local_depth/img{self.current_step}.png")
+        #     with open(pos_path+"local_pos.txt", "a") as f:
+        #         f.write(str(concat_pos) + "\n")
+        #         # self.current_cur_task+=1
+        # self.current_cur_step+=1
+        # # end
+
         if self._distance_from == "END_EFFECTOR":
             current_position = self.get_end_effector_position()
         else:
@@ -1482,6 +1678,192 @@ class GOATDistanceToSubGoal(DistanceToGoal):
             self.force_metric_update = True
             self.update_goal_viewpoints(episode, kwargs["task"].current_task_idx)
             kwargs["task"].update_goal = False
+            
+# class GOATDistanceToSubGoal(DistanceToGoal):
+#     """The measure calculates a distance towards a sub-task goal."""
+
+#     cls_uuid: str = "goat_distance_to_sub-goal"
+
+#     def __init__(
+#         self, sim: Simulator, config: "DictConfig", *args: Any, **kwargs: Any
+#     ):
+#         # start, wxl
+#         self.current_cur_step = 1
+#         self.current_cur_task = 0
+#         self.hfov = None
+#         self.current_cur_subgoal = 0
+#         # end, wxl
+
+#         super().__init__(sim, config, **kwargs)
+
+#         # start, wxl
+#         self.current_cur_step = 1
+#         self.current_cur_task = 0
+#         self.hfov = None
+#         self.current_cur_subgoal = 0
+#         # end, wxl
+
+#     def reset_metric(self, episode, *args: Any, **kwargs: Any):
+#         self._previous_position = None
+#         self._metric = None
+
+#         kwargs["task"].num_tasks = len(kwargs["observations"]["multigoal"])
+#         kwargs["task"].current_task_idx = 0
+#         kwargs["task"].update_goal = False
+#         self.force_metric_update = False
+
+#         if self._distance_to == "VIEW_POINTS":
+#             self.update_goal_viewpoints(episode)
+#         self.update_metric(episode=episode, *args, **kwargs)  # type: ignore
+
+#     def update_goal_viewpoints(self, episode, current_goal_idx=0):
+        
+#         # start, wxl
+#         self.current_cur_subgoal = current_goal_idx
+#         # end, wxl
+
+#         self._episode_view_points = []
+
+#         try:
+#             for goal in getattr(episode, self._goals_attr)[current_goal_idx]:
+#                 if type(goal) == dict:
+#                     for vp in goal["view_points"]:
+#                         self._episode_view_points.append(
+#                             vp['agent_state']['position']
+#                         )
+#                 else:
+#                     if type(goal[0]) != dict:
+#                         for g in goal[0]:
+#                             for vp in g["view_points"]:
+#                                 self._episode_view_points.append(
+#                                     vp['agent_state']['position']
+#                                 )
+#                     else:
+#                         for vp in goal[0]["view_points"]:
+#                             self._episode_view_points.append(
+#                                 vp['agent_state']['position']
+#                             )
+#         except Exception as e:
+#             print(e)
+#             import pdb;pdb.set_trace()
+
+
+#     def update_metric(
+#         self, episode: NavigationEpisode, *args: Any, **kwargs: Any
+#     ):
+#         # from PIL import Image
+#         # import os
+#         # def keep_img(img, path, type = ''):
+#         #     # if type == 'depth':
+#         #     #     depth_map = np.array(img)
+#         #     #     depth_min = depth_map.min()
+#         #     #     depth_max = depth_map.max()
+
+#         #     #     # normalized_depth = ((depth_map - depth_min) / (depth_max - depth_min) * 255).astype(np.uint8)
+#         #     #     # img = Image.fromarray(normalized_depth)
+#         #     #     img = Image.fromarray(depth_map.astype(np.uint8))
+#         #     #     img.save(path)
+#         #     #     return 
+
+#         #     img = np.array(img,dtype=np.uint8)
+#         #     img = Image.fromarray(img)
+#         #     img.save(path)
+#         # # start，record data，2025.2.24，wxl
+#         # print("record some rgb-d and position/rotation data, wxl")
+#         # current_position = self._sim.get_agent_state().position
+#         # current_rotation = self._sim.get_agent_state().rotation
+
+#         # current_obs = self._sim.get_sensor_observations()
+#         # current_rgb = current_obs['rgb']
+#         # current_depth = current_obs['depth']
+#         # # print(current_position.tolist())
+#         # concat_pos = [current_rotation.w,current_rotation.x,current_rotation.y,current_rotation.z] + current_position.tolist()
+#         # concat_pos = [str(x) for x in concat_pos]
+
+#         # sensor_spec = self._sim.config.agents[0].sensor_specifications[0]
+#         # self.hfov = sensor_spec.hfov
+
+#         # if self.current_cur_step>=1:
+#         #     if self.current_cur_subgoal != self.current_cur_task:
+#         #         self.current_cur_step = 1
+#         #         self.current_cur_task = self.current_cur_subgoal
+#         #     concat_pos = f"{int(self.current_cur_step)} "+' '.join(concat_pos)
+#         #     rgb_path = f"/home/zht/github_play/mycode/data_for_gs/{self.current_cur_subgoal}/rgb/"
+#         #     dep_path = f"/home/zht/github_play/mycode/data_for_gs/{self.current_cur_subgoal}/depth/"
+#         #     pos_path = f"/home/zht/github_play/mycode/data_for_gs/{self.current_cur_subgoal}/"
+#         #     if not os.path.exists(rgb_path):
+#         #         os.makedirs(rgb_path)
+#         #     if not os.path.exists(dep_path):
+#         #         os.makedirs(dep_path)
+#         #     if not os.path.exists(pos_path):
+#         #         os.makedirs(pos_path)
+#         #     keep_img(current_rgb,rgb_path + f"img{str(self.current_cur_step).zfill(4)}.png")
+#         #     np.save(dep_path + f"img{str(self.current_cur_step).zfill(4)}.npy", np.array(current_depth))
+#         #     # keep_img(current_depth,dep_path + f"img{str(self.current_cur_step).zfill(4)}.png", 'depth')
+#         #     # keep_img(current_rgb,f"./result/local_depth/img{self.current_step}.png")
+#         #     with open(pos_path+"local_pos.txt", "a") as f:
+#         #         f.write(str(concat_pos) + "\n")
+#         #         # self.current_cur_task+=1
+#         # self.current_cur_step+=1
+#         if self._distance_from == "END_EFFECTOR":
+#             current_position = self.get_end_effector_position()
+#         else:
+#             current_position = self.get_base_position()
+
+#         if self._previous_position is not None:
+#             recent_position_didnt_change = np.allclose(self._previous_position, current_position, atol=1e-4)
+
+#         if self._previous_position is None or not recent_position_didnt_change or self.force_metric_update:
+#             episode_cache = None
+#             if self._distance_to == "EUCLIDEAN_POINT":
+#                 distance_to_target = min(
+#                     [
+#                         np.linalg.norm(
+#                             np.array(goal.position) - current_position,
+#                             ord=2,
+#                             axis=-1,
+#                         )
+#                         for goal in getattr(episode, self._goals_attr)
+#                     ]
+#                 )
+#             elif self._distance_to == "POINT":
+#                 distance_to_target = self._sim.geodesic_distance(
+#                     current_position,
+#                     [
+#                         goal.position
+#                         for goal in getattr(episode, self._goals_attr)
+#                     ],
+#                     episode_cache,
+#                 )
+#             elif self._distance_to == "VIEW_POINTS":
+#                 distance_to_target = self._sim.geodesic_distance(current_position, self._episode_view_points, episode_cache)
+#             else:
+#                 logger.error(
+#                     f"Non valid distance_to parameter was provided: {self._distance_to }"
+#                 )
+#             self._previous_position = (
+#                 current_position[0],
+#                 current_position[1],
+#                 current_position[2],
+#             )
+#             self._metric = distance_to_target
+
+#             # if distance_to_target < 0.26:
+#             #     import pdb;pdb.set_trace()
+
+#             if self.force_metric_update:
+#                 self.force_metric_update = False
+    
+#         if kwargs["task"].update_goal:
+#             kwargs["task"].current_task_idx += 1
+#             print(
+#                 "Updating goal (viewpoints); new current_task_idx:",
+#                 kwargs["task"].current_task_idx,
+#             )
+
+#             self.force_metric_update = True
+#             self.update_goal_viewpoints(episode, kwargs["task"].current_task_idx)
+#             kwargs["task"].update_goal = False
             
 
 
