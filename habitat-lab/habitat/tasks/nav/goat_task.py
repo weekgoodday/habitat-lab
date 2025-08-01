@@ -124,12 +124,12 @@ class MultiGoalSensor(Sensor):
             if s.uuid != sensor_uuid
         ]
 
-    def get_image_goal(self, episode, goal_idx, img_goal_id, task_type = "image"):
+    def get_image_goal(self, episode, goal_idx, img_goal_id, task_type = "image", object_idx = 0):
         episode_uniq_id = f"{episode.scene_id} {episode.episode_id} {goal_idx}"
-        if episode_uniq_id == self._current_episode_id:
-            return self._current_image_goal
+        # if episode_uniq_id == self._current_episode_id:
+        #     return self._current_image_goal
         if task_type == "object":
-            img_params = episode.goals[goal_idx][0][0]["image_goals"][
+            img_params = episode.goals[goal_idx][0][object_idx]["image_goals"][
                 img_goal_id
             ]
         else:
@@ -151,15 +151,15 @@ class MultiGoalSensor(Sensor):
         return self._current_image_goal
     
     # wxl, 2025.4.3, 得到真值图片
-    def get_groundtruth_goal(self, episode, goal_idx, img_goal_id, task_type = "image"):
+    def get_groundtruth_goal(self, episode, goal_idx, img_goal_id, task_type = "image", object_idx = 0):
         episode_uniq_id = f"{episode.scene_id} {episode.episode_id} {goal_idx}"
-        if episode_uniq_id == self._current_episode_id:
-            return self._current_image_goal
+        # if episode_uniq_id == self._current_episode_id:
+        #     return self._current_image_goal
         # best_params_idx = 0
         # for i, params in enumerate(episode.goals[goal_idx][0]["view_points"]):
         #     if params["iou"] 
         if task_type == "object":
-            img_params = episode.goals[goal_idx][0][0]["view_points"][
+            img_params = episode.goals[goal_idx][0][object_idx]["view_points"][
                 img_goal_id
             ]["agent_state"]
         else:
@@ -196,7 +196,8 @@ class MultiGoalSensor(Sensor):
             )
             return None
         
-        data_path = 'groundtruth_data/'
+        scene_id_tmp = episode.scene_id.split('/')[-1].split('.')[0]
+        data_path = f'groundtruth_data/{scene_id_tmp}/'
 
         goals, vocabulary = [], []
         for goal_idx, goal_val in enumerate(episode.tasks):
@@ -207,14 +208,43 @@ class MultiGoalSensor(Sensor):
                 goal["category"] = episode.goals[goal_idx][0]["object_category"]
                 img_goal_id = goal_val[-1]
                 goal["image"] = self.get_image_goal(episode, goal_idx, img_goal_id)
-                pos = episode.goals[goal_idx][0]["position"]
+                
+                
+                # pos = episode.goals[goal_idx][0]["position"]
+                # goal_img_list = []
+                # while img_goal_id < goal_val[-1] + 20:
+                #     try:
+                #         goal_img_list.append(self.get_image_goal(episode, goal_idx, img_goal_id))
+                #     except:
+                #         # print("Error getting image goal, trying groundtruth: ", goal_idx, img_goal_id)
+                #         try:
+                #             goal_img_list.append(self.get_groundtruth_goal(episode, goal_idx, img_goal_id))
+                #         except:
+                #             # print("Error getting groundtruth goal, breaking: ", goal_idx, img_goal_id)
+                #             break
+                #     img_goal_id += 2
+                    
             elif goal_val[1] == "description":
                 goal["category"] = episode.goals[goal_idx][0]["object_category"]
+                goal["description"] = episode.goals[goal_idx][0]["lang_desc"]
                 img_goal_id = 0
                 try:
                     goal['image'] = self.get_image_goal(episode, goal_idx, img_goal_id)
                 except:
                     goal["image"] = self.get_groundtruth_goal(episode, goal_idx, img_goal_id)
+                
+                # pos = episode.goals[goal_idx][0]["position"]
+                # goal_img_list = []
+                # while img_goal_id < 20:
+                #     try:
+                #         goal_img_list.append(self.get_image_goal(episode, goal_idx, img_goal_id))
+                #     except:
+                #         try:
+                #             goal_img_list.append(self.get_groundtruth_goal(episode, goal_idx, img_goal_id))
+                #         except:
+                #             break
+                #     img_goal_id += 2
+
             elif goal_val[1] == "object":
                 goal["category"] = episode.goals[goal_idx][0][0]["object_category"]
                 img_goal_id = 0
@@ -222,32 +252,64 @@ class MultiGoalSensor(Sensor):
                     goal['image'] = self.get_image_goal(episode, goal_idx, img_goal_id, task_type="object")
                 except:
                     goal["image"] = self.get_groundtruth_goal(episode, goal_idx, img_goal_id, task_type="object")
+                
+                # # 记录数据，wxl
+                # goal_txt = str(goal_idx).zfill(2) + goal['category']
+                # goal_path = data_path + goal_txt
+                # if not os.path.exists(goal_path):
+                #     os.makedirs(goal_path)
+                # object_idx = 0
+                # poses = []
+                # while object_idx < len(episode.goals[goal_idx][0]):
+                #     img_goal_id = 0
+                #     pos = episode.goals[goal_idx][0][object_idx]["position"]
+                #     poses.append(pos)
+                #     goal_img_list = []
+                #     while img_goal_id < 10:
+                #         try:
+                #             goal_img_list.append(self.get_image_goal(episode, goal_idx, img_goal_id, task_type="object", object_idx=object_idx))
+                #         except:
+                #             try:
+                #                 goal_img_list.append(self.get_groundtruth_goal(episode, goal_idx, img_goal_id, task_type="object", object_idx=object_idx))
+                #             except:
+                #                 break
+                #         img_goal_id += 1
+
+                #     if not os.path.exists(goal_path + '/' + str(object_idx) +'/'):
+                #         os.makedirs(goal_path + '/' + str(object_idx) + '/')
+                #     for i, goal_img in enumerate(goal_img_list):
+                #         goal_img = cv2.cvtColor(np.array(goal_img).astype(np.uint8), cv2.COLOR_RGB2BGR)
+                #         cv2.imwrite(goal_path + f"/{object_idx}/{goal_txt}_{i}.png", goal_img.astype(np.uint8))
+                #     object_idx += 1
+                # with open(goal_path + '/pos.txt', "a") as f:
+                #     for pos in poses:
+                #         f.write(str(pos) + "\n")
+                # with open(goal_path + '/language.txt', "a") as f:
+                #     f.write(str(goal["category"]) + "\n")
             
-            if goal_val[1] == "description":
-                goal["category"] = episode.goals[goal_idx][0]["object_category"]
-                goal["description"] = episode.goals[goal_idx][0]["lang_desc"]
-                pos = episode.goals[goal_idx][0]["position"]
-            else:
+            if goal_val[1] != "description":
                 goal["description"] = None
-            
-            if goal_val[1] == "object":
-                goal["category"] = episode.goals[goal_idx][0][0]["object_category"]
-                pos = episode.goals[goal_idx][0][0]["position"]
-            
+
             goals.append(goal)
             
-            # # 记录数据，wxl
-            # goal_txt = str(goal_idx).zfill(2) + goal['category']
-            # goal_path = data_path + goal_txt
-            # if not os.path.exists(goal_path):
-            #     os.makedirs(goal_path)
-            # with open(goal_path + '/pos.txt', "a") as f:
-            #     f.write(str(pos) + "\n")
-            # if goal_val[1] == "description":
-            #     with open(goal_path + '/language.txt', "a") as f:
-            #         f.write(str(goal["description"]) + "\n")
-            # goal_img = cv2.cvtColor(np.array(goal['image']).astype(np.uint8), cv2.COLOR_RGB2BGR)
-            # cv2.imwrite(goal_path + f"/{goal_txt}.png", goal_img.astype(np.uint8))
+        #     # 记录数据，wxl
+        #     if goal_val[1] != "object":
+        #         goal_txt = str(goal_idx).zfill(2) + goal['category']
+        #         goal_path = data_path + goal_txt
+        #         if not os.path.exists(goal_path):
+        #             os.makedirs(goal_path)
+        #         with open(goal_path + '/pos.txt', "a") as f:
+        #             f.write(str(pos) + "\n")
+        #         if goal_val[1] == "description":
+        #             with open(goal_path + '/language.txt', "a") as f:
+        #                 f.write(str(goal["description"]) + "\n")
+        #         else:
+        #             with open(goal_path + '/language.txt', "a") as f:
+        #                 f.write(str(goal["category"]) + "\n")
+        #         for i, goal_img in enumerate(goal_img_list):
+        #             goal_img = cv2.cvtColor(np.array(goal_img).astype(np.uint8), cv2.COLOR_RGB2BGR)
+        #             cv2.imwrite(goal_path + f"/{goal_txt}_{i}.png", goal_img.astype(np.uint8))
+        # raise NotImplementedError("record over")
         return goals
 
 

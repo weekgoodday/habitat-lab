@@ -79,6 +79,7 @@ class Env:
             information. Can be defined as :py:`None` in which case
             ``_episodes`` should be populated from outside.
         """
+        self.exp_first = config.EXP_FIRST
 
         if "habitat" in config:
             config = config.habitat
@@ -99,6 +100,11 @@ class Env:
             assert (
                 len(self._dataset.episodes) > 0
             ), "dataset should have non-empty episodes list"
+            if self.exp_first:
+                for i in range(len(self._dataset.episodes)):
+                    self._dataset.episodes[i].tasks.insert(0, self._dataset.episodes[i].tasks[0])
+                    self._dataset.episodes[i].goals.insert(0, self._dataset.episodes[i].goals[0])
+                    
             self._setup_episode_iterator()
             self.current_episode = next(self.episode_iterator)
             with read_write(self._config):

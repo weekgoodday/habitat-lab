@@ -41,6 +41,25 @@ from habitat.utils.geometry_utils import (
 )
 from habitat.utils.visualizations import fog_of_war, maps
 
+
+from PIL import Image
+import os
+def keep_img(img, path, type = ''):
+    if type == 'depth':
+        depth_map = np.array(img)
+        depth_min = depth_map.min()
+        depth_max = depth_map.max()
+
+        # normalized_depth = ((depth_map - depth_min) / (depth_max - depth_min) * 255).astype(np.uint8)
+        # img = Image.fromarray(normalized_depth)
+        img = Image.fromarray(depth_map.astype(np.uint8))
+        img.save(path)
+        return 
+
+    img = np.array(img,dtype=np.uint8)
+    img = Image.fromarray(img)
+    img.save(path)
+
 try:
     from habitat.sims.habitat_simulator.habitat_simulator import HabitatSim
     from habitat_sim import RigidState
@@ -1548,6 +1567,10 @@ class GOATDistanceToSubGoal(DistanceToGoal):
     def update_goal_viewpoints(self, episode, current_goal_idx=0):
         
         self._episode_view_points = []
+        
+        # start, wxl
+        self.current_cur_subgoal = current_goal_idx
+        # end, wxl
 
         try:
             # zht: The result of getattr(episode, self._goals_attr)[current_goal_idx] is always a list with a length of 1. However, when the goal is an object goal, the single item inside this list is another list of length N, where N is the number of objects with the same category.
@@ -1602,15 +1625,17 @@ class GOATDistanceToSubGoal(DistanceToGoal):
         # sensor_spec = self._sim.config.agents[0].sensor_specifications[0]
         # self.hfov = sensor_spec.hfov
 
-        # if self.current_cur_step>=1:
+        # if self.current_cur_step>=1 and self.current_cur_subgoal==0:
         #     # print("\n\n\n\n\n")
         #     if self.current_cur_subgoal != self.current_cur_task:
         #         self.current_cur_step = 1
         #         self.current_cur_task = self.current_cur_subgoal
         #     concat_pos = f"{int(self.current_cur_step)} "+' '.join(concat_pos)
-        #     rgb_path = f"./result/{self.current_cur_subgoal}/rgb/"
-        #     dep_path = f"./result/{self.current_cur_subgoal}/depth/"
-        #     pos_path = f"./result/{self.current_cur_subgoal}/"
+        #     scene_name = episode.scene_id.split('.')[0].split('/')[-1]
+        #     root_path = f'./record_data_wxl_v2/{scene_name}'
+        #     rgb_path = f"{root_path}/{self.current_cur_subgoal}/rgb/"
+        #     dep_path = f"{root_path}/{self.current_cur_subgoal}/depth/"
+        #     pos_path = f"{root_path}/{self.current_cur_subgoal}/"
         #     if not os.path.exists(rgb_path):
         #         os.makedirs(rgb_path)
         #     if not os.path.exists(dep_path):
@@ -1621,7 +1646,7 @@ class GOATDistanceToSubGoal(DistanceToGoal):
         #     np.save(dep_path + f"img{str(self.current_cur_step).zfill(4)}.npy", np.array(current_depth))
         #     # keep_img(current_depth,dep_path + f"img{str(self.current_cur_step).zfill(4)}.png", 'depth')
         #     # keep_img(current_rgb,f"./result/local_depth/img{self.current_step}.png")
-        #     with open(pos_path+"local_pos.txt", "a") as f:
+        #     with open(pos_path+"global_pos.txt", "a") as f:
         #         f.write(str(concat_pos) + "\n")
         #         # self.current_cur_task+=1
         # self.current_cur_step+=1
